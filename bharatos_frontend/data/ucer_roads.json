@@ -1,0 +1,17 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "road_id": "main-gate-road", "congestion": 20 },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [81.8598, 25.4008],
+          [81.8603, 25.4012],
+          [81.8607, 25.4016]
+        ]
+      }
+    }
+  ]
+}

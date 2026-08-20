@@ -1,0 +1,19 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "Main Academic Block", "height": 15, "base": 0 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [81.8600, 25.4010],
+          [81.8605, 25.4010],
+          [81.8605, 25.4015],
+          [81.8600, 25.4015],
+          [81.8600, 25.4010]
+        ]]
+      }
+    }
+  ]
+}

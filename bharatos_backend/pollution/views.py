@@ -1,5 +1,6 @@
 import joblib
 import os
+import numpy as np
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -32,12 +33,20 @@ class PollutionPredictView(APIView):
         model = get_model()
         grid = generate_city_grid(data['center_lat'], data['center_lng'])
 
-        predictions = []
-        for point in grid:
-            features = [[data['wind_speed'], data['temperature'], data['humidity'],
-                         data['hour_of_day'], data['traffic_index']]]
-            predicted_pm25 = model.predict(features)[0]
-            predictions.append({**point, "concentration": round(predicted_pm25, 2)})
+        # Single batched predict call for the whole grid instead of one
+        # call per point — same fix as the traffic endpoint, much faster
+        # for a 2,600+ point grid.
+        features = np.array([
+            [data['wind_speed'], data['temperature'], data['humidity'],
+             data['hour_of_day'], data['traffic_index']]
+            for _ in grid
+        ])
+        predicted_values = model.predict(features)
+
+        predictions = [
+            {**point, "concentration": round(float(pm25), 2)}
+            for point, pm25 in zip(grid, predicted_values)
+        ]
 
         return Response({"grid": predictions}, status=status.HTTP_200_OK)
 

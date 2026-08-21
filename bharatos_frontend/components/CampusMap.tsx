@@ -12,6 +12,24 @@ import InspectorPanel from './InspectorPanel';
 const CENTER_LNG = 81.8603;
 const CENTER_LAT = 25.4012;
 
+// Loads real Prayagraj building footprints (fetched from OpenStreetMap via
+// scripts/fetch-buildings.mjs, saved to public/data/buildings.geojson).
+// Falls back to the procedural grid below if that file doesn't exist yet,
+// so the map never breaks — it just won't be geographically accurate until
+// `node scripts/fetch-buildings.mjs` has been run once.
+async function loadBuildingFootprints(centerLat: number, centerLng: number): Promise<GeoJSON.FeatureCollection> {
+  try {
+    const res = await fetch('/data/buildings.geojson');
+    if (!res.ok) throw new Error(`buildings.geojson not found (${res.status})`);
+    const data = await res.json();
+    if (!data?.features?.length) throw new Error('buildings.geojson is empty');
+    return data;
+  } catch (err) {
+    console.warn('Falling back to procedural buildings — run `node scripts/fetch-buildings.mjs` for real footprints.', err);
+    return generateBuildingGrid(centerLat, centerLng);
+  }
+}
+
 function generateBuildingGrid(centerLat: number, centerLng: number, rows = 40, cols = 40, spacingM = 35) {
   const features: any[] = [];
   const mLat = 1 / 110_540;
@@ -72,6 +90,7 @@ export default function CityMap() {
   const [avgCongestion, setAvgCongestion] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [inspector, setInspector] = useState<any>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const baselineById = useRef<Record<string, number>>({});
 
   useEffect(() => {
@@ -107,7 +126,9 @@ export default function CityMap() {
     map.current.on('load', () => {
       if (!map.current) return;
 
-      map.current.addSource('buildings', { type: 'geojson', data: generateBuildingGrid(CENTER_LAT, CENTER_LNG) });
+      // Add the source empty first so the layer/map never blocks on the fetch,
+      // then populate it once real (or fallback) footprints resolve.
+      map.current.addSource('buildings', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       map.current.addLayer({
         id: 'buildings-3d',
         type: 'fill-extrusion',
@@ -119,6 +140,10 @@ export default function CityMap() {
           'fill-extrusion-opacity': 0.95,
           'fill-extrusion-vertical-gradient': true, // gives the sides real shading, not flat color
         },
+      });
+
+      loadBuildingFootprints(CENTER_LAT, CENTER_LNG).then((data) => {
+        (map.current?.getSource('buildings') as maplibregl.GeoJSONSource)?.setData(data);
       });
 
       map.current.addSource('sim-grid', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -183,13 +208,29 @@ export default function CityMap() {
     }
   }
 
-  async function runPollutionSimulation(params: SimulationParams) {
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function runPollutionSimulation(params: SimulationParams) {
     setLoading(true);
+    setErrorMessage(null);
     try {
-      const response = await fetch('http://localhost:8000/api/pollution/factory-impact/', {
+      const response = await fetchWithTimeout('http://localhost:8000/api/pollution/factory-impact/', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(params),
       });
-      if (!response.ok) { console.error(await response.text()); return; }
+      if (!response.ok) {
+        const text = await response.text();
+        console.error(text);
+        setErrorMessage(`Backend error (${response.status}). Check the Django terminal for the full traceback.`);
+        return;
+      }
       const result = await response.json();
       setRecommendation(result.recommendation);
       setAvgCongestion(null);
@@ -207,8 +248,13 @@ export default function CityMap() {
         };
       });
       (map.current?.getSource('sim-grid') as maplibregl.GeoJSONSource)?.setData({ type: 'FeatureCollection', features });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Network error:', err);
+      setErrorMessage(
+        err?.name === 'AbortError'
+          ? 'Request timed out after 30s. The backend may be stuck — check the Django terminal.'
+          : 'Could not reach the backend at localhost:8000. Is `manage.py runserver` running?'
+      );
     } finally {
       setLoading(false);
     }
@@ -216,11 +262,17 @@ export default function CityMap() {
 
   async function runTrafficSimulation(params: TrafficParams) {
     setLoading(true);
+    setErrorMessage(null);
     try {
-      const response = await fetch('http://localhost:8000/api/traffic/predict/', {
+      const response = await fetchWithTimeout('http://localhost:8000/api/traffic/predict/', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(params),
       });
-      if (!response.ok) { console.error(await response.text()); return; }
+      if (!response.ok) {
+        const text = await response.text();
+        console.error(text);
+        setErrorMessage(`Backend error (${response.status}). Check the Django terminal for the full traceback.`);
+        return;
+      }
       const result = await response.json();
       setAvgCongestion(result.avg_congestion_percent);
       setRecommendation(null);
@@ -235,8 +287,13 @@ export default function CityMap() {
         };
       });
       (map.current?.getSource('sim-grid') as maplibregl.GeoJSONSource)?.setData({ type: 'FeatureCollection', features });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Network error:', err);
+      setErrorMessage(
+        err?.name === 'AbortError'
+          ? 'Request timed out after 30s. The backend may be stuck — check the Django terminal.'
+          : 'Could not reach the backend at localhost:8000. Is `manage.py runserver` running?'
+      );
     } finally {
       setLoading(false);
     }
@@ -263,6 +320,12 @@ export default function CityMap() {
             <TrafficSimulationForm onRun={runTrafficSimulation} loading={loading} />
           )}
           {inspector && <InspectorPanel {...inspector} onClose={() => setInspector(null)} />}
+          {errorMessage && (
+            <div className="absolute top-4 right-4 max-w-sm bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg shadow-lg px-4 py-3 z-[1000] flex items-start gap-2">
+              <span className="flex-1">{errorMessage}</span>
+              <button onClick={() => setErrorMessage(null)} className="text-red-400 hover:text-red-600 font-bold leading-none">×</button>
+            </div>
+          )}
         </div>
       </div>
     </div>

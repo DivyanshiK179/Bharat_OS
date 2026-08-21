@@ -1,5 +1,6 @@
 import joblib
 import os
+import numpy as np
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -46,7 +47,12 @@ class TrafficPredictView(APIView):
         grid = generate_road_grid(data["center_lat"], data["center_lng"])
         active_flag = SCENARIO_TO_FLAGS.get(data["scenario_type"])  # None if "none"
 
-        predictions = []
+        # Build every row up front and predict the whole grid in a single
+        # batched call — calling model.predict() once per point (in a Python
+        # loop, one row at a time) is what was making this endpoint take
+        # tens of seconds; XGBoost is built to score thousands of rows at
+        # once in a single vectorized call.
+        rows = []
         for point in grid:
             row = {
                 "hour_of_day": data["hour_of_day"],
@@ -63,13 +69,17 @@ class TrafficPredictView(APIView):
             }
             if active_flag:
                 row[f"is_{active_flag}"] = 1
+            rows.append([row[f] for f in FEATURES_ORDER])
 
-            features = [[row[f] for f in FEATURES_ORDER]]
-            congestion = float(model.predict(features)[0])
-            predictions.append({
+        congestion_values = model.predict(np.array(rows))
+
+        predictions = [
+            {
                 "id": point["id"], "lat": point["lat"], "lng": point["lng"],
-                "congestion_percent": round(congestion, 1),
-            })
+                "congestion_percent": round(float(congestion), 1),
+            }
+            for point, congestion in zip(grid, congestion_values)
+        ]
 
         avg_congestion = sum(p["congestion_percent"] for p in predictions) / len(predictions)
 

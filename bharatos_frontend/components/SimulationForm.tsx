@@ -26,45 +26,19 @@ export default function SimulationForm({ onRun, loading }: SimulationFormProps) 
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    onRun({
-      industry_type: industryType,
-      scale,
-      latitude: 25.4012,
-      longitude: 81.8603,
-      stack_height_m: stackHeight,
-      wind_speed: windSpeed,
-      wind_direction_deg: windDirection,
-    });
+    onRun({ industry_type: industryType, scale, latitude: 25.4012, longitude: 81.8603, stack_height_m: stackHeight, wind_speed: windSpeed, wind_direction_deg: windDirection });
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      style={{
-        position: 'absolute',
-        top: 16,
-        left: 16,
-        zIndex: 1000,
-        background: 'white',
-        padding: 16,
-        borderRadius: 8,
-        width: 260,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 10,
-        fontSize: 14,
-      }}
-    >
-      <strong style={{ fontSize: 15 }}>Factory Impact Simulator</strong>
+    <form onSubmit={handleSubmit} className="absolute top-4 left-4 w-72 bg-white rounded-xl shadow-xl border border-slate-200 p-4 z-[1000] space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-slate-800">Scenario Setup</h3>
+        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-50 text-amber-700">FACTORY-SIM</span>
+      </div>
 
-      <label>
+      <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-500">
         Industry type
-        <select
-          value={industryType}
-          onChange={(e) => setIndustryType(e.target.value)}
-          style={{ width: '100%', padding: 6, marginTop: 4 }}
-        >
+        <select value={industryType} onChange={(e) => setIndustryType(e.target.value)} className="w-full mt-1 px-2 py-1.5 rounded-md border border-slate-200 text-sm text-slate-800 font-sans normal-case">
           <option value="textile">Textile</option>
           <option value="chemical">Chemical</option>
           <option value="cement">Cement</option>
@@ -72,70 +46,32 @@ export default function SimulationForm({ onRun, loading }: SimulationFormProps) 
         </select>
       </label>
 
-      <label>
+      <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-500">
         Scale
-        <select
-          value={scale}
-          onChange={(e) => setScale(e.target.value)}
-          style={{ width: '100%', padding: 6, marginTop: 4 }}
-        >
+        <select value={scale} onChange={(e) => setScale(e.target.value)} className="w-full mt-1 px-2 py-1.5 rounded-md border border-slate-200 text-sm text-slate-800 font-sans normal-case">
           <option value="small">Small</option>
           <option value="medium">Medium</option>
           <option value="large">Large</option>
         </select>
       </label>
 
-      <label>
+      <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-500">
         Stack height (m)
-        <input
-          type="number"
-          value={stackHeight}
-          onChange={(e) => setStackHeight(Number(e.target.value))}
-          min={1}
-          max={200}
-          style={{ width: '100%', padding: 6, marginTop: 4 }}
-        />
+        <input type="number" value={stackHeight} min={1} max={200} onChange={(e) => setStackHeight(Number(e.target.value))} className="w-full mt-1 px-2 py-1.5 rounded-md border border-slate-200 text-sm text-slate-800 font-sans" />
       </label>
 
-      <label>
+      <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-500">
         Wind speed (m/s)
-        <input
-          type="number"
-          value={windSpeed}
-          onChange={(e) => setWindSpeed(Number(e.target.value))}
-          min={0.5}
-          max={20}
-          step={0.1}
-          style={{ width: '100%', padding: 6, marginTop: 4 }}
-        />
+        <input type="number" value={windSpeed} min={0.5} max={20} step={0.1} onChange={(e) => setWindSpeed(Number(e.target.value))} className="w-full mt-1 px-2 py-1.5 rounded-md border border-slate-200 text-sm text-slate-800 font-sans" />
       </label>
 
-      <label>
+      <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-500">
         Wind direction (° from)
-        <input
-          type="number"
-          value={windDirection}
-          onChange={(e) => setWindDirection(Number(e.target.value))}
-          min={0}
-          max={360}
-          style={{ width: '100%', padding: 6, marginTop: 4 }}
-        />
+        <input type="number" value={windDirection} min={0} max={360} onChange={(e) => setWindDirection(Number(e.target.value))} className="w-full mt-1 px-2 py-1.5 rounded-md border border-slate-200 text-sm text-slate-800 font-sans" />
       </label>
 
-      <button
-        type="submit"
-        disabled={loading}
-        style={{
-          padding: '8px 16px',
-          background: loading ? '#93c5fd' : '#3b82f6',
-          color: 'white',
-          border: 'none',
-          borderRadius: 6,
-          cursor: loading ? 'not-allowed' : 'pointer',
-          marginTop: 4,
-        }}
-      >
-        {loading ? 'Running…' : 'Run simulation'}
+      <button type="submit" disabled={loading} className={`w-full py-2 rounded-md text-sm font-medium text-white transition-colors ${loading ? 'bg-amber-300 cursor-not-allowed' : 'bg-amber-500 hover:bg-amber-600'}`}>
+        {loading ? 'Running…' : 'Run Predictive Simulation'}
       </button>
     </form>
   );

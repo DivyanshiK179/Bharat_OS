@@ -1,72 +1,212 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import ThreeMarkerLayer from './ThreeMarkerLayer';
+import * as maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import SimulationForm, { SimulationParams } from './SimulationForm';
+import TrafficSimulationForm, { TrafficParams } from './TrafficSimulationForm';
+import Sidebar, { DashboardMode } from './Sidebar';
+import TopStatusBar from './TopStatusBar';
+import InspectorPanel from './InspectorPanel';
 
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-});
+const CENTER_LNG = 81.8603;
+const CENTER_LAT = 25.4012;
+
+function generateBuildingGrid(centerLat: number, centerLng: number, rows = 40, cols = 40, spacingM = 35) {
+  const features: any[] = [];
+  const mLat = 1 / 110_540;
+  const mLng = 1 / (111_320 * Math.cos((centerLat * Math.PI) / 180));
+
+  for (let i = -rows / 2; i < rows / 2; i++) {
+    for (let j = -cols / 2; j < cols / 2; j++) {
+      if (Math.random() < 0.25) continue;
+      const baseLat = centerLat + i * spacingM * mLat;
+      const baseLng = centerLng + j * spacingM * mLng;
+      const w = (14 + Math.random() * 14) * mLng;
+      const h = (14 + Math.random() * 14) * mLat;
+      const height = 10 + Math.random() * 35; // taller + more varied, reads as a real skyline
+
+      features.push({
+        type: 'Feature',
+        properties: { height },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[[baseLng, baseLat], [baseLng + w, baseLat], [baseLng + w, baseLat + h], [baseLng, baseLat + h], [baseLng, baseLat]]],
+        },
+      });
+    }
+  }
+  return { type: 'FeatureCollection', features } as GeoJSON.FeatureCollection;
+}
+
+function estimateTrafficFactors(params: TrafficParams, point: any) {
+  const isRush = (params.hour_of_day >= 8 && params.hour_of_day <= 10) || (params.hour_of_day >= 17 && params.hour_of_day <= 20);
+  const factors: { label: string; value: number }[] = [];
+  if (isRush) factors.push({ label: 'Rush hour', value: 35 });
+  if (params.rainfall_mm > 0) factors.push({ label: 'Rainfall', value: Math.min(40, Math.round(params.rainfall_mm * 1.3)) });
+  if (params.visibility_m < 1000) factors.push({ label: 'Low visibility (fog)', value: Math.round(((1000 - params.visibility_m) / 1000) * 60) });
+  if (params.scenario_type !== 'none') factors.push({ label: params.scenario_type.replace(/_/g, ' '), value: 45 });
+  if (point.is_bridge_segment) factors.push({ label: 'Bridge chokepoint', value: 30 });
+  if (point.near_railway_crossing) factors.push({ label: 'Railway crossing nearby', value: 20 });
+  if (!factors.length) factors.push({ label: 'Baseline conditions', value: 20 });
+  return factors.sort((a, b) => b.value - a.value).slice(0, 4);
+}
+
+function estimatePollutionFactors(params: SimulationParams, cell: any, baseline: number) {
+  const plume = Math.max(0, cell.concentration - baseline);
+  return [
+    { label: 'Factory plume contribution', value: Math.min(95, Math.round(plume)) },
+    { label: 'Wind dispersion', value: Math.max(5, Math.round(40 - params.wind_speed * 4)) },
+    { label: 'Stack height effect', value: Math.max(5, Math.round(50 - params.stack_height_m)) },
+    { label: 'Baseline city pollution', value: Math.round(baseline) },
+  ].sort((a, b) => b.value - a.value).slice(0, 4);
+}
 
 export default function CityMap() {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<L.Map | null>(null);
-  const gridLayer = useRef<L.LayerGroup | null>(null);
+  const map = useRef<maplibregl.Map | null>(null);
+
+  const [mode, setMode] = useState<DashboardMode>('traffic');
+  const modeRef = useRef<DashboardMode>('traffic'); // avoids the stale-closure bug in the map click handler
   const [recommendation, setRecommendation] = useState<any>(null);
+  const [avgCongestion, setAvgCongestion] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
-  const [mapReady, setMapReady] = useState(false);
+  const [inspector, setInspector] = useState<any>(null);
+  const baselineById = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   useEffect(() => {
     if (map.current || !mapContainer.current) return;
 
-    map.current = L.map(mapContainer.current).setView([25.4012, 81.8603], 12);
+    map.current = new maplibregl.Map({
+      container: mapContainer.current,
+      style: {
+        version: 8,
+        sources: {
+          satellite: {
+            type: 'raster',
+            tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+            tileSize: 256,
+            maxzoom: 18,
+            attribution: 'Esri World Imagery',
+          },
+        },
+        layers: [{ id: 'satellite-layer', type: 'raster', source: 'satellite' }],
+        light: { anchor: 'viewport', color: '#ffffff', intensity: 0.5, position: [1.5, 90, 40] },
+      },
+      center: [CENTER_LNG, CENTER_LAT],
+      zoom: 17.2, // zoomed in enough that 3D buildings actually read as buildings
+      pitch: 60,
+      bearing: -20,
+      antialias: true,
+    });
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-      maxZoom: 19,
-    }).addTo(map.current);
+    map.current.on('load', () => {
+      if (!map.current) return;
 
-    gridLayer.current = L.layerGroup().addTo(map.current);
-    setMapReady(true);
+      map.current.addSource('buildings', { type: 'geojson', data: generateBuildingGrid(CENTER_LAT, CENTER_LNG) });
+      map.current.addLayer({
+        id: 'buildings-3d',
+        type: 'fill-extrusion',
+        source: 'buildings',
+        paint: {
+          'fill-extrusion-color': '#f5f2e8',
+          'fill-extrusion-height': ['get', 'height'],
+          'fill-extrusion-base': 0,
+          'fill-extrusion-opacity': 0.95,
+          'fill-extrusion-vertical-gradient': true, // gives the sides real shading, not flat color
+        },
+      });
+
+      map.current.addSource('sim-grid', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.current.addLayer({
+        id: 'sim-grid-layer',
+        type: 'circle',
+        source: 'sim-grid',
+        paint: {
+          'circle-radius': 10,
+          'circle-color': ['get', 'color'],
+          'circle-opacity': 0.85,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff',
+        },
+      });
+
+      map.current.on('click', 'sim-grid-layer', (e) => {
+        const f = e.features?.[0];
+        if (f) handlePointClick(f.properties, modeRef.current);
+      });
+
+      map.current.on('mouseenter', 'sim-grid-layer', () => {
+        if (map.current) map.current.getCanvas().style.cursor = 'pointer';
+      });
+      map.current.on('mouseleave', 'sim-grid-layer', () => {
+        if (map.current) map.current.getCanvas().style.cursor = '';
+      });
+    });
+
+    return () => { map.current?.remove(); map.current = null; };
   }, []);
 
-  async function runSimulation(params: SimulationParams) {
+  function handlePointClick(props: any, currentMode: DashboardMode) {
+    if (currentMode === 'traffic') {
+      const riskLevel = props.congestion_percent > 70 ? 'high' : props.congestion_percent > 40 ? 'moderate' : 'low';
+      setInspector({
+        cellId: `PRY_TRAF_${props.id}`,
+        title: `Road segment [${props.id}]`,
+        riskLevel,
+        stats: [
+          { label: 'Congestion', value: `${props.congestion_percent}%` },
+          { label: 'Scenario', value: (props.scenario_type ?? '').replace(/_/g, ' ') },
+          { label: 'Hour', value: `${props.hour_of_day}:00` },
+          { label: 'Bridge segment', value: props.is_bridge_segment ? 'Yes' : 'No' },
+        ],
+        factors: JSON.parse(props.factors),
+        barColorClass: 'bg-blue-500',
+      });
+    } else {
+      const riskLevel = props.concentration > 150 ? 'high' : props.concentration > 60 ? 'moderate' : 'low';
+      setInspector({
+        cellId: `PRY_POLL_${props.id}`,
+        title: `Grid cell [${props.id}]`,
+        riskLevel,
+        stats: [
+          { label: 'PM2.5 (projected)', value: `${props.concentration} µg/m³` },
+          { label: 'Baseline PM2.5', value: `${props.baseline} µg/m³` },
+        ],
+        factors: JSON.parse(props.factors),
+        barColorClass: 'bg-amber-500',
+      });
+    }
+  }
+
+  async function runPollutionSimulation(params: SimulationParams) {
     setLoading(true);
     try {
       const response = await fetch('http://localhost:8000/api/pollution/factory-impact/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(params),
       });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error('Simulation failed:', errText);
-        setLoading(false);
-        return;
-      }
-
+      if (!response.ok) { console.error(await response.text()); return; }
       const result = await response.json();
       setRecommendation(result.recommendation);
+      setAvgCongestion(null);
+      setInspector(null);
 
-      gridLayer.current?.clearLayers();
-      result.projected_grid.forEach((cell: any) => {
-        const color =
-          cell.concentration > 150 ? '#ef4444' : cell.concentration > 60 ? '#f59e0b' : '#22c55e';
+      baselineById.current = Object.fromEntries(result.baseline_grid.map((c: any) => [c.id, c.concentration]));
 
-        L.circleMarker([cell.lat, cell.lng], {
-          radius: 6,
-          fillColor: color,
-          color: color,
-          fillOpacity: 0.6,
-          weight: 0,
-        }).addTo(gridLayer.current as L.LayerGroup);
+      const features = result.projected_grid.map((cell: any) => {
+        const baseline = baselineById.current[cell.id] ?? 25;
+        const color = cell.concentration > 150 ? '#ef4444' : cell.concentration > 60 ? '#f59e0b' : '#22c55e';
+        return {
+          type: 'Feature',
+          properties: { ...cell, baseline, color, factors: JSON.stringify(estimatePollutionFactors(params, cell, baseline)) },
+          geometry: { type: 'Point', coordinates: [cell.lng, cell.lat] },
+        };
       });
+      (map.current?.getSource('sim-grid') as maplibregl.GeoJSONSource)?.setData({ type: 'FeatureCollection', features });
     } catch (err) {
       console.error('Network error:', err);
     } finally {
@@ -74,31 +214,57 @@ export default function CityMap() {
     }
   }
 
+  async function runTrafficSimulation(params: TrafficParams) {
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/traffic/predict/', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(params),
+      });
+      if (!response.ok) { console.error(await response.text()); return; }
+      const result = await response.json();
+      setAvgCongestion(result.avg_congestion_percent);
+      setRecommendation(null);
+      setInspector(null);
+
+      const features = result.grid.map((cell: any) => {
+        const color = cell.congestion_percent > 70 ? '#ef4444' : cell.congestion_percent > 40 ? '#f59e0b' : '#22c55e';
+        return {
+          type: 'Feature',
+          properties: { ...cell, ...params, color, factors: JSON.stringify(estimateTrafficFactors(params, cell)) },
+          geometry: { type: 'Point', coordinates: [cell.lng, cell.lat] },
+        };
+      });
+      (map.current?.getSource('sim-grid') as maplibregl.GeoJSONSource)?.setData({ type: 'FeatureCollection', features });
+    } catch (err) {
+      console.error('Network error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function switchMode(newMode: DashboardMode) {
+    setMode(newMode);
+    setRecommendation(null);
+    setAvgCongestion(null);
+    setInspector(null);
+    (map.current?.getSource('sim-grid') as maplibregl.GeoJSONSource)?.setData({ type: 'FeatureCollection', features: [] });
+  }
+
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100vh' }}>
-      <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
-
-      <SimulationForm onRun={runSimulation} loading={loading} />
-
-      {mapReady && <ThreeMarkerLayer map={map.current} lat={25.4012} lng={81.8603} />}
-
-      {recommendation && (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 16,
-            left: 16,
-            zIndex: 1000,
-            background: 'white',
-            padding: 12,
-            borderRadius: 8,
-            maxWidth: 320,
-          }}
-        >
-          <strong>{recommendation.decision.replace(/_/g, ' ').toUpperCase()}</strong>
-          <p style={{ margin: '4px 0 0' }}>{recommendation.reason}</p>
+    <div className="flex w-full h-screen">
+      <Sidebar mode={mode} onModeChange={switchMode} onOpenFactoryTool={() => switchMode('pollution')} />
+      <div className="flex-1 flex flex-col min-w-0">
+        <TopStatusBar mode={mode} isRunning={loading} avgCongestion={avgCongestion} recommendation={recommendation} />
+        <div className="relative flex-1">
+          <div ref={mapContainer} className="w-full h-full" />
+          {mode === 'pollution' ? (
+            <SimulationForm onRun={runPollutionSimulation} loading={loading} />
+          ) : (
+            <TrafficSimulationForm onRun={runTrafficSimulation} loading={loading} />
+          )}
+          {inspector && <InspectorPanel {...inspector} onClose={() => setInspector(null)} />}
         </div>
-      )}
+      </div>
     </div>
   );
 }

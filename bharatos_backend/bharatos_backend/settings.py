@@ -136,6 +136,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'pollution',
+    'traffic',
 ]
 
 MIDDLEWARE = [

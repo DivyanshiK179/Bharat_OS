@@ -7,71 +7,51 @@ import SimulationForm, { SimulationParams } from './SimulationForm';
 import TrafficSimulationForm, { TrafficParams } from './TrafficSimulationForm';
 import Sidebar, { DashboardMode } from './Sidebar';
 import TopStatusBar from './TopStatusBar';
+import RightAnalyticsPanel from './RightAnalyticsPanel';
+import RightPollutionAnalytics from './RightPollutionAnalytics';
+import BottomTelemetryBar from './BottomTelemetryBar';
 import InspectorPanel from './InspectorPanel';
 
-// Verified GIS Benchmarks across Prayagraj [Longitude, Latitude]
 const CAMERA_PRESETS = [
-  {
-    label: 'New Yamuna Bridge',
-    center: [81.8613, 25.4272] as [number, number], // Syama Prasad Mukherjee Setu
-    zoom: 17.5,
-    pitch: 60,
-    bearing: 30,
-  },
-  {
-    label: 'Old Naini Bridge',
-    center: [81.85028, 25.42389] as [number, number], // Historic Double-Deck Bridge
-    zoom: 17.5,
-    pitch: 58,
-    bearing: -30,
-  },
-  {
-    label: 'Sangam Confluence',
-    center: [81.8795, 25.4290] as [number, number], // Exact Confluence Water Channel
-    zoom: 17.2,
-    pitch: 52,
-    bearing: 30,
-  },
-  {
-    label: 'Civil Lines (MG Marg)',
-    center: [81.8340, 25.4528] as [number, number], // Subhash Chauraha
-    zoom: 17.4,
-    pitch: 55,
-    bearing: 0,
-  },
-  {
-    label: 'Naini Industrial Hub',
-    center: [81.8680, 25.3820] as [number, number], // Industrial Cluster
-    zoom: 17.0,
-    pitch: 60,
-    bearing: -15,
-  },
-  {
-    label: 'Aerial Overview',
-    center: [81.8550, 25.4300] as [number, number],
-    zoom: 13.5,
-    pitch: 0,
-    bearing: 0,
-  },
+  { label: 'New Yamuna Bridge', center: [81.8613, 25.4272] as [number, number], zoom: 17.5, pitch: 60, bearing: 30 },
+  { label: 'Old Naini Bridge', center: [81.85028, 25.42389] as [number, number], zoom: 17.5, pitch: 58, bearing: -30 },
+  { label: 'Sangam Confluence', center: [81.8899, 25.4242] as [number, number], zoom: 17.2, pitch: 52, bearing: 35 },
+  { label: 'Civil Lines (MG Marg)', center: [81.8340, 25.4528] as [number, number], zoom: 17.4, pitch: 55, bearing: 0 },
+  { label: 'Naini Industrial Hub', center: [81.8680, 25.3820] as [number, number], zoom: 17.0, pitch: 60, bearing: -15 },
+  { label: 'Aerial Overview', center: [81.8550, 25.4300] as [number, number], zoom: 13.5, pitch: 0, bearing: 0 },
 ];
 
-const DEFAULT_LNG = 81.8340;
-const DEFAULT_LAT = 25.4528;
+const LOCAL_GAZETTEER = [
+  { name: 'Dhoomanganj, Prayagraj', lat: 25.4495, lng: 81.7783 },
+  { name: 'Civil Lines (Subhash Chauraha), Prayagraj', lat: 25.4528, lng: 81.8340 },
+  { name: 'Triveni Sangam Ghat, Prayagraj', lat: 25.4242, lng: 81.8899 },
+  { name: 'New Yamuna Cable Bridge, Prayagraj', lat: 25.4272, lng: 81.8613 },
+  { name: 'Old Naini Bridge, Prayagraj', lat: 25.42389, lng: 81.85028 },
+  { name: 'Naini Industrial Area, Prayagraj', lat: 25.3820, lng: 81.8680 },
+  { name: 'Katra (University Area), Prayagraj', lat: 25.4610, lng: 81.8570 },
+  { name: 'Georgetown, Prayagraj', lat: 25.4450, lng: 81.8560 },
+  { name: 'Daraganj Ghat, Prayagraj', lat: 25.4380, lng: 81.8790 },
+  { name: 'Kydganj, Prayagraj', lat: 25.4310, lng: 81.8520 },
+  { name: 'Jhalwa (IIIT-A Area), Prayagraj', lat: 25.4290, lng: 81.7710 },
+  { name: 'Bamrauli Airport Area, Prayagraj', lat: 25.4410, lng: 81.7340 },
+  { name: 'Phaphamau Bridge, Prayagraj', lat: 25.5010, lng: 81.8580 },
+  { name: 'Allahabad Fort / Akshayavat, Prayagraj', lat: 25.4295, lng: 81.8760 },
+  { name: 'High Court of Judicature, Prayagraj', lat: 25.4570, lng: 81.8230 },
+];
+
+const DEFAULT_LNG = 81.8613;
+const DEFAULT_LAT = 25.4272;
 
 function getPolygonCentroid(coordinates: number[][][]): [number, number] | null {
   const ring = coordinates?.[0];
   if (!ring || ring.length === 0) return null;
-
   let totalLng = 0;
   let totalLat = 0;
-  const count = ring.length;
-
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < ring.length; i++) {
     totalLng += ring[i][0];
     totalLat += ring[i][1];
   }
-
-  return [totalLng / count, totalLat / count];
+  return [totalLng / ring.length, totalLat / ring.length];
 }
 
 async function loadBuildingFootprints(): Promise<GeoJSON.FeatureCollection> {
@@ -85,20 +65,25 @@ async function loadBuildingFootprints(): Promise<GeoJSON.FeatureCollection> {
     const features: any[] = [];
     const mLat = 1 / 110_540;
     const mLng = 1 / (111_320 * Math.cos((DEFAULT_LAT * Math.PI) / 180));
-
     for (let i = -30; i < 30; i += 2) {
       for (let j = -30; j < 30; j += 2) {
         if (Math.random() < 0.3) continue;
         const baseLat = DEFAULT_LAT + i * 40 * mLat;
         const baseLng = DEFAULT_LNG + j * 40 * mLng;
-        const w = (15 + Math.random() * 15) * mLng;
-        const h = (15 + Math.random() * 15) * mLat;
         features.push({
           type: 'Feature',
           properties: { height: 8 + Math.random() * 28 },
           geometry: {
             type: 'Polygon',
-            coordinates: [[[baseLng, baseLat], [baseLng + w, baseLat], [baseLng + w, baseLat + h], [baseLng, baseLat + h], [baseLng, baseLat]]],
+            coordinates: [
+              [
+                [baseLng, baseLat],
+                [baseLng + 15 * mLng, baseLat],
+                [baseLng + 15 * mLng, baseLat + 15 * mLat],
+                [baseLng, baseLat + 15 * mLat],
+                [baseLng, baseLat],
+              ],
+            ],
           },
         });
       }
@@ -115,21 +100,28 @@ export default function CityMap() {
 
   const requestIdRef = useRef(0);
   const geocodeAbortRef = useRef<AbortController | null>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const [mode, setMode] = useState<DashboardMode>('traffic');
-  const modeRef = useRef<DashboardMode>('traffic');
+  const [isDark, setIsDark] = useState(false);
+  const [mode, setMode] = useState<DashboardMode>('pollution');
+  const modeRef = useRef<DashboardMode>('pollution');
   const [recommendation, setRecommendation] = useState<any>(null);
-  const [avgCongestion, setAvgCongestion] = useState<number | null>(null);
+  const [avgCongestion, setAvgCongestion] = useState<number | null>(68);
   const [loading, setLoading] = useState(false);
   const [inspector, setInspector] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showBuildings3D, setShowBuildings3D] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
-  const [activeCameraView, setActiveCameraView] = useState('Civil Lines (MG Marg)');
 
+  // Dynamic Panel Visibility
+  const [showAnalytics, setShowAnalytics] = useState(true);
+  const [showTelemetry, setShowTelemetry] = useState(true);
+
+  const [activeCameraView, setActiveCameraView] = useState('New Yamuna Bridge');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Array<{ name: string; lat: number; lng: number }>>([]);
-  const [currentLocationName, setCurrentLocationName] = useState('Civil Lines (MG Marg)');
+  const [isSearching, setIsSearching] = useState(false);
+  const [currentLocationName, setCurrentLocationName] = useState('New Yamuna Bridge');
   const [currentCoords, setCurrentCoords] = useState<[number, number]>([DEFAULT_LNG, DEFAULT_LAT]);
   const [isLiveTracking, setIsLiveTracking] = useState(false);
 
@@ -138,6 +130,13 @@ export default function CityMap() {
   useEffect(() => {
     modeRef.current = mode;
   }, [mode]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      map.current?.resize();
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [showAnalytics, showTelemetry]);
 
   useEffect(() => {
     if (!map.current || !map.current.getLayer('buildings-3d')) return;
@@ -149,7 +148,6 @@ export default function CityMap() {
     map.current.setLayoutProperty('sim-grid-layer', 'visibility', showGrid ? 'visible' : 'none');
   }, [showGrid]);
 
-  // Precision Location Pointer & Dynamic Marker
   const updateLocationMarker = useCallback((coords: [number, number], label: string) => {
     setCurrentCoords(coords);
     if (label) setCurrentLocationName(label);
@@ -163,7 +161,7 @@ export default function CityMap() {
 
       const labelBox = document.createElement('div');
       labelBox.className =
-        'absolute -top-9 whitespace-nowrap bg-slate-950/95 text-white font-semibold text-[11px] px-2.5 py-1 rounded-lg shadow-2xl backdrop-blur-md border border-slate-700/80 pointer-events-none transition-all';
+        'absolute -top-9 whitespace-nowrap bg-slate-950/95 text-white font-semibold text-[11px] px-2.5 py-1 rounded-lg shadow-2xl border border-slate-700/80 pointer-events-none transition-all';
       labelBox.innerText = `📍 ${label || 'Selected Point'}`;
       markerLabelRef.current = labelBox;
 
@@ -187,21 +185,15 @@ export default function CityMap() {
   }, []);
 
   const resolveLocationName = useCallback(async (lat: number, lng: number, currentReqId: number): Promise<void> => {
-    if (geocodeAbortRef.current) {
-      geocodeAbortRef.current.abort();
-    }
+    if (geocodeAbortRef.current) geocodeAbortRef.current.abort();
     geocodeAbortRef.current = new AbortController();
 
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1`,
-        {
-          headers: { 'Accept-Language': 'en' },
-          signal: geocodeAbortRef.current.signal,
-        }
+        { headers: { 'Accept-Language': 'en' }, signal: geocodeAbortRef.current.signal }
       );
       const data = await res.json();
-
       if (currentReqId !== requestIdRef.current) return;
 
       const addr = data?.address;
@@ -231,6 +223,7 @@ export default function CityMap() {
 
     map.current = new maplibregl.Map({
       container: mapContainer.current,
+      attributionControl: false,
       style: {
         version: 8,
         sources: {
@@ -239,33 +232,30 @@ export default function CityMap() {
             tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
             tileSize: 256,
             maxzoom: 19,
-            attribution: 'Esri World Imagery',
           },
           osmOverlay: {
             type: 'raster',
             tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
             tileSize: 256,
             maxzoom: 19,
-            attribution: '© OpenStreetMap',
           },
         },
         layers: [
           { id: 'satellite-layer', type: 'raster', source: 'satellite' },
-          { id: 'osm-overlay', type: 'raster', source: 'osmOverlay', paint: { 'raster-opacity': 0.22 } },
+          { id: 'osm-overlay', type: 'raster', source: 'osmOverlay', paint: { 'raster-opacity': 0.2 } },
         ],
         light: { anchor: 'viewport', color: '#ffffff', intensity: 0.65, position: [1.5, 90, 40] },
       },
       center: [DEFAULT_LNG, DEFAULT_LAT],
-      zoom: 17.4,
-      pitch: 55,
-      bearing: 0,
+      zoom: 17.5,
+      pitch: 60,
+      bearing: 30,
       antialias: true,
     });
 
     map.current.on('load', () => {
       if (!map.current) return;
-
-      updateLocationMarker([DEFAULT_LNG, DEFAULT_LAT], 'Civil Lines (MG Marg)');
+      updateLocationMarker([DEFAULT_LNG, DEFAULT_LAT], 'New Yamuna Bridge');
 
       map.current.addSource('buildings', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       map.current.addLayer({
@@ -330,13 +320,6 @@ export default function CityMap() {
         updateLocationMarker([targetLng, targetLat], 'Locating point...');
         resolveLocationName(targetLat, targetLng, thisReqId);
       });
-
-      map.current.on('mouseenter', 'sim-grid-layer', () => {
-        if (map.current) map.current.getCanvas().style.cursor = 'pointer';
-      });
-      map.current.on('mouseleave', 'sim-grid-layer', () => {
-        if (map.current) map.current.getCanvas().style.cursor = '';
-      });
     });
 
     return () => {
@@ -360,19 +343,34 @@ export default function CityMap() {
     });
   }
 
-  async function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
+  const performSearch = async (queryText: string) => {
+    const q = queryText.trim().toLowerCase();
+    if (!q) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+
+    const localMatches = LOCAL_GAZETTEER.filter((item) =>
+      item.name.toLowerCase().includes(q)
+    );
+
+    if (localMatches.length > 0) {
+      setSearchResults(localMatches);
+      setIsSearching(false);
+      return;
+    }
 
     try {
-      const endpoint = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
-        searchQuery + ', Prayagraj'
-      )}&format=json&limit=5&addressdetails=1`;
-
-      const res = await fetch(endpoint, { headers: { 'Accept-Language': 'en' } });
+      const searchTarget = q.includes('prayagraj') || q.includes('allahabad') ? q : `${q}, Prayagraj`;
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchTarget)}&format=json&limit=5&addressdetails=1`
+      );
       const data = await res.json();
 
-      if (data && data.length > 0) {
+      if (Array.isArray(data) && data.length > 0) {
         setSearchResults(
           data.map((item: any) => ({
             name: item.display_name,
@@ -383,10 +381,32 @@ export default function CityMap() {
       } else {
         setSearchResults([]);
       }
-    } catch (err) {
-      console.error('Search failed:', err);
+    } catch {
+      setSearchResults(localMatches);
+    } finally {
+      setIsSearching(false);
     }
-  }
+  };
+
+  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSearchQuery(val);
+
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    if (val.trim().length >= 1) {
+      searchTimeoutRef.current = setTimeout(() => {
+        performSearch(val);
+      }, 250);
+    } else {
+      setSearchResults([]);
+    }
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    performSearch(searchQuery);
+  };
 
   function handleSelectLocation(lat: number, lng: number, label: string) {
     requestIdRef.current++;
@@ -476,61 +496,25 @@ export default function CityMap() {
     }
   }
 
-  async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 30000) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      return await fetch(url, { ...options, signal: controller.signal });
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
   async function runPollutionSimulation(params: SimulationParams) {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const response = await fetchWithTimeout('http://localhost:8000/api/pollution/factory-impact/', {
+      const response = await fetch('http://localhost:8000/api/pollution/factory-impact/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
       });
       if (!response.ok) {
-        const text = await response.text();
-        console.error(text);
-        setErrorMessage(`Backend error (${response.status}). Check Django terminal.`);
+        setErrorMessage(`Backend error (${response.status})`);
         return;
       }
       const result = await response.json();
       setRecommendation(result.recommendation);
       setAvgCongestion(null);
-      setInspector(null);
-
       baselineById.current = Object.fromEntries(result.baseline_grid.map((c: any) => [c.id, c.concentration]));
-
-      const features = result.projected_grid.map((cell: any) => {
-        const baseline = baselineById.current[cell.id] ?? 25;
-        const color = cell.concentration > 150 ? '#ef4444' : cell.concentration > 60 ? '#f59e0b' : '#22c55e';
-        return {
-          type: 'Feature',
-          properties: {
-            ...cell,
-            baseline,
-            color,
-            factors: JSON.stringify([
-              { label: 'Factory plume contribution', value: Math.min(95, Math.round(Math.max(0, cell.concentration - baseline))) },
-              { label: 'Wind dispersion', value: Math.max(5, Math.round(40 - params.wind_speed * 4)) },
-              { label: 'Stack height effect', value: Math.max(5, Math.round(50 - params.stack_height_m)) },
-            ]),
-          },
-          geometry: { type: 'Point', coordinates: [cell.lng, cell.lat] },
-        };
-      });
-      (map.current?.getSource('sim-grid') as maplibregl.GeoJSONSource)?.setData({ type: 'FeatureCollection', features });
-    } catch (err: any) {
-      setErrorMessage(
-        err?.name === 'AbortError' ? 'Simulation timed out.' : 'Could not reach backend at localhost:8000.'
-      );
+    } catch {
+      setErrorMessage('Could not reach backend at localhost:8000.');
     } finally {
       setLoading(false);
     }
@@ -540,196 +524,279 @@ export default function CityMap() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const response = await fetchWithTimeout('http://localhost:8000/api/traffic/predict/', {
+      const response = await fetch('http://localhost:8000/api/traffic/predict/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
       });
       if (!response.ok) {
-        setErrorMessage(`Backend error (${response.status}). Check Django terminal.`);
+        setErrorMessage(`Backend error (${response.status})`);
         return;
       }
       const result = await response.json();
       setAvgCongestion(result.avg_congestion_percent);
       setRecommendation(null);
-      setInspector(null);
-
-      const features = result.grid.map((cell: any) => {
-        const color = cell.congestion_percent > 70 ? '#ef4444' : cell.congestion_percent > 40 ? '#f59e0b' : '#22c55e';
-        return {
-          type: 'Feature',
-          properties: {
-            ...cell,
-            ...params,
-            color,
-            factors: JSON.stringify([
-              { label: 'Peak Hour Factor', value: params.hour_of_day >= 8 && params.hour_of_day <= 11 ? 38 : 15 },
-              { label: 'Rain Impact', value: Math.min(35, Math.round(params.rainfall_mm * 1.2)) },
-              { label: 'Chokepoint Density', value: cell.is_bridge_segment ? 45 : 20 },
-            ]),
-          },
-          geometry: { type: 'Point', coordinates: [cell.lng, cell.lat] },
-        };
-      });
-      (map.current?.getSource('sim-grid') as maplibregl.GeoJSONSource)?.setData({ type: 'FeatureCollection', features });
-    } catch (err: any) {
-      setErrorMessage(
-        err?.name === 'AbortError' ? 'Simulation timed out.' : 'Could not reach backend at localhost:8000.'
-      );
+    } catch {
+      setErrorMessage('Could not reach backend at localhost:8000.');
     } finally {
       setLoading(false);
     }
   }
 
-  function switchMode(newMode: DashboardMode) {
-    setMode(newMode);
-    setRecommendation(null);
-    setAvgCongestion(null);
-    setInspector(null);
-    (map.current?.getSource('sim-grid') as maplibregl.GeoJSONSource)?.setData({ type: 'FeatureCollection', features: [] });
-  }
-
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-slate-950">
-      <Sidebar mode={mode} onModeChange={switchMode} onOpenFactoryTool={() => switchMode('pollution')} />
+    <div className={`${isDark ? 'dark' : ''} flex h-screen w-screen overflow-hidden font-sans`}>
+      <div className="flex h-full w-full overflow-hidden bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200">
+        {/* 1. Left Sidebar */}
+        <Sidebar mode={mode} onModeChange={setMode} />
 
-      <div className="relative flex flex-1 flex-col min-w-0 overflow-hidden">
-        <TopStatusBar
-          mode={mode}
-          isRunning={loading}
-          avgCongestion={avgCongestion}
-          recommendation={recommendation}
-          showBuildings3D={showBuildings3D}
-          onToggleBuildings={() => setShowBuildings3D(!showBuildings3D)}
-          showGrid={showGrid}
-          onToggleGrid={() => setShowGrid(!showGrid)}
-        />
+        {/* 2. Main Body */}
+        <div className="relative flex flex-1 flex-col h-full min-w-0 overflow-hidden bg-slate-50/60 dark:bg-slate-950/60">
+          {/* Top Header */}
+          <TopStatusBar
+            mode={mode}
+            isRunning={loading}
+            avgCongestion={avgCongestion}
+            recommendation={recommendation}
+            showBuildings3D={showBuildings3D}
+            onToggleBuildings={() => setShowBuildings3D(!showBuildings3D)}
+            showGrid={showGrid}
+            onToggleGrid={() => setShowGrid(!showGrid)}
+            showAnalytics={showAnalytics}
+            onToggleAnalytics={() => setShowAnalytics(!showAnalytics)}
+            showTelemetry={showTelemetry}
+            onToggleTelemetry={() => setShowTelemetry(!showTelemetry)}
+            isDark={isDark}
+            onToggleTheme={() => setIsDark(!isDark)}
+          />
 
-        <div className="relative flex-1 w-full h-full overflow-hidden">
-          <div ref={mapContainer} className="absolute inset-0 w-full h-full" />
+          {/* Unified Single-Line Control Bar */}
+          <div className="px-6 py-2 flex items-center justify-between gap-3 select-none relative z-30">
+            <div className="flex items-center gap-2.5 flex-nowrap shrink-0">
+              {/* Search Box */}
+              <div className="relative">
+                <form onSubmit={handleSearchSubmit} className="flex items-center">
+                  <div className="relative flex items-center">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={handleSearchInputChange}
+                      placeholder="Search Prayagraj (e.g. Dhoomanganj)..."
+                      className="h-8 w-56 rounded-xl bg-white dark:bg-slate-800 pl-7 pr-6 text-xs font-medium text-slate-800 dark:text-slate-200 shadow-xs border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="absolute left-2.5 text-slate-400 text-xs">🔍</span>
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchQuery('');
+                          setSearchResults([]);
+                        }}
+                        className="absolute right-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </form>
 
-          {/* Top Controls: Search Bar & Preset Quick-Links */}
-          <div className="pointer-events-none absolute left-6 top-5 z-20 flex flex-wrap items-center gap-3">
-            <div className="pointer-events-auto relative">
-              <form onSubmit={handleSearch} className="flex items-center">
-                <div className="relative flex items-center">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search Prayagraj (e.g. Civil Lines)..."
-                    className="h-9 w-64 rounded-xl bg-white/95 pl-8 pr-8 text-xs font-medium text-slate-800 placeholder-slate-400 shadow-lg backdrop-blur-md border border-slate-200/90 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                  />
-                  <span className="absolute left-2.5 text-slate-400 text-xs">🔍</span>
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setSearchQuery('')}
-                      className="absolute right-2.5 text-slate-400 hover:text-slate-600 text-xs font-bold"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              </form>
+                {/* Dropdown Results */}
+                {searchResults.length > 0 && (
+                  <div className="absolute left-0 top-9 w-80 rounded-xl bg-white dark:bg-slate-800 p-1.5 shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col gap-1 z-50">
+                    {searchResults.map((res, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => handleSelectLocation(res.lat, res.lng, res.name)}
+                        className="flex flex-col items-start px-2.5 py-1.5 rounded-lg text-left hover:bg-blue-50 dark:hover:bg-slate-700 transition text-slate-800 dark:text-slate-200"
+                      >
+                        <span className="font-semibold text-xs text-blue-600 dark:text-blue-400 line-clamp-1">
+                          {res.name.split(',')[0]}
+                        </span>
+                        <span className="text-[10px] text-slate-400 line-clamp-1">{res.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
 
-              {searchResults.length > 0 && (
-                <div className="absolute left-0 top-11 w-80 rounded-xl bg-white/98 p-1.5 shadow-2xl backdrop-blur-md border border-slate-200/90 flex flex-col gap-1 z-30">
-                  {searchResults.map((res, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handleSelectLocation(res.lat, res.lng, res.name)}
-                      className="flex flex-col items-start px-2.5 py-1.5 rounded-lg text-left hover:bg-blue-50 transition text-slate-800"
-                    >
-                      <span className="font-semibold text-xs text-blue-600 line-clamp-1">{res.name.split(',')[0]}</span>
-                      <span className="text-[10px] text-slate-400 line-clamp-1">{res.name}</span>
-                    </button>
+                {isSearching && (
+                  <div className="absolute left-0 top-9 w-44 rounded-xl bg-white dark:bg-slate-800 p-2 shadow-xl border border-slate-200 dark:border-slate-700 text-[11px] text-slate-400 flex items-center gap-2 z-50">
+                    <span className="h-2.5 w-2.5 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+                    <span>Searching...</span>
+                  </div>
+                )}
+              </div>
+
+              {/* My Location GPS Button */}
+              <button
+                onClick={handleTrackCurrentPosition}
+                disabled={isLiveTracking}
+                className="flex items-center gap-1.5 h-8 rounded-xl bg-white dark:bg-slate-800 px-2.5 shadow-xs border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-700 hover:text-blue-600 transition shrink-0"
+              >
+                <span className={`h-2 w-2 rounded-full ${isLiveTracking ? 'bg-amber-500 animate-spin' : 'bg-blue-600 animate-pulse'}`} />
+                <span>{isLiveTracking ? 'Locating...' : 'My Location'}</span>
+              </button>
+
+              <span className="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
+
+              {/* Street-Level Presets */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 shrink-0">
+                  STREET-LEVEL:
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {CAMERA_PRESETS.map((p, idx) => (
+                    <div key={p.label} className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleCameraFlyTo(p)}
+                        className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-all shadow-xs whitespace-nowrap ${
+                          activeCameraView === p.label
+                            ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
+                            : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700'
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                      {idx < CAMERA_PRESETS.length - 1 && (
+                        <span className="text-slate-300 dark:text-slate-700 text-xs">›</span>
+                      )}
+                    </div>
                   ))}
                 </div>
-              )}
+              </div>
             </div>
 
+            {/* Expansion Toggle */}
             <button
-              onClick={handleTrackCurrentPosition}
-              disabled={isLiveTracking}
-              className="pointer-events-auto flex items-center gap-1.5 h-9 rounded-xl bg-white/95 px-3 shadow-lg backdrop-blur-md border border-slate-200/90 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition"
+              onClick={() => setShowAnalytics(!showAnalytics)}
+              className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:text-blue-600 transition flex items-center gap-1 shrink-0 ml-2"
             >
-              <span className={`h-2.5 w-2.5 rounded-full ${isLiveTracking ? 'bg-amber-500 animate-spin' : 'bg-blue-600 animate-pulse'}`} />
-              <span>{isLiveTracking ? 'Locating...' : 'My Location'}</span>
+              <span>{showAnalytics ? 'Collapse Panel' : 'Expand Analytics'}</span>
+              <span>{showAnalytics ? '⇥' : '⇤'}</span>
             </button>
+          </div>
 
-            <div className="pointer-events-auto flex items-center gap-1 rounded-xl bg-white/95 px-3 py-1 shadow-lg backdrop-blur-md border border-slate-200/90">
-              <span className="mr-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase">Street-Level:</span>
-              <div className="flex gap-1">
-                {CAMERA_PRESETS.map((preset) => (
+          {/* Main Stage */}
+          <div className="flex-1 flex px-6 pb-2.5 gap-3.5 min-h-0 relative z-10">
+            {/* 3D Map Viewport */}
+            <div className="relative flex-1 h-full rounded-2xl overflow-hidden shadow-sm border border-slate-200/80 dark:border-slate-800 bg-slate-900 transition-all duration-300">
+              <div ref={mapContainer} className="absolute inset-0 w-full h-full" />
+
+              {/* Floating Scenario Setup Form */}
+              <div className="absolute left-4 top-4 z-20 pointer-events-auto">
+                {mode === 'pollution' ? (
+                  <SimulationForm onRun={runPollutionSimulation} loading={loading} />
+                ) : (
+                  <TrafficSimulationForm onRun={runTrafficSimulation} loading={loading} />
+                )}
+              </div>
+
+              {/* Floating Map Controls Dock */}
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-2 pointer-events-auto">
+                <div className="flex flex-col rounded-xl bg-white/95 dark:bg-slate-800/95 shadow-md border border-slate-200/80 dark:border-slate-700 overflow-hidden">
                   <button
-                    key={preset.label}
-                    onClick={() => handleCameraFlyTo(preset)}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
-                      activeCameraView === preset.label
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
+                    onClick={() => map.current?.flyTo({ center: currentCoords, zoom: 18, pitch: 60 })}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition"
+                    title="Target Location"
                   >
-                    {preset.label}
+                    🎯
                   </button>
-                ))}
-              </div>
-            </div>
-          </div>
+                  <div className="h-[1px] bg-slate-200 dark:bg-slate-700" />
+                  <button
+                    onClick={() => map.current?.zoomIn()}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs transition"
+                    title="Zoom In"
+                  >
+                    ＋
+                  </button>
+                  <div className="h-[1px] bg-slate-200 dark:bg-slate-700" />
+                  <button
+                    onClick={() => map.current?.zoomOut()}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs transition"
+                    title="Zoom Out"
+                  >
+                    －
+                  </button>
+                </div>
 
-          {/* Floating Scenario Form */}
-          <div className="pointer-events-none absolute left-6 top-20 z-10">
-            <div className="pointer-events-auto">
-              {mode === 'pollution' ? (
-                <SimulationForm onRun={runPollutionSimulation} loading={loading} />
-              ) : (
-                <TrafficSimulationForm onRun={runTrafficSimulation} loading={loading} />
+                <div className="flex flex-col rounded-xl bg-white/95 dark:bg-slate-800/95 shadow-md border border-slate-200/80 dark:border-slate-700 overflow-hidden">
+                  <button
+                    onClick={() => setShowBuildings3D(!showBuildings3D)}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition"
+                    title="Toggle Layers"
+                  >
+                    📚
+                  </button>
+                  <div className="h-[1px] bg-slate-200 dark:bg-slate-700" />
+                  <button
+                    onClick={() => map.current?.resetNorthPitch()}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 text-red-500 font-bold transition"
+                    title="Reset Compass"
+                  >
+                    🧭
+                  </button>
+                </div>
+              </div>
+
+              {/* Inspector Panel */}
+              {inspector && (
+                <div className="absolute right-16 top-4 z-20 pointer-events-auto">
+                  <InspectorPanel {...inspector} onClose={() => setInspector(null)} />
+                </div>
               )}
+
+              {/* Bottom-Left Focus Telemetry Chip */}
+              <div className="absolute bottom-4 left-4 z-20 flex flex-col gap-1.5 rounded-xl bg-white/95 dark:bg-slate-900/95 px-4 py-3 shadow-md border border-slate-200/80 dark:border-slate-800 text-xs min-w-[210px] transition-colors duration-200">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="font-bold tracking-wider text-slate-400 uppercase text-[10px]">Active Focus</span>
+                  <span className="flex items-center gap-1.5 font-bold text-blue-600 dark:text-blue-400 text-[11px] truncate max-w-[130px]">
+                    <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                    {currentLocationName}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-slate-600 dark:text-slate-300">
+                  <span>Mesh Grid</span>
+                  <span className="font-semibold text-slate-900 dark:text-white">{showGrid ? '250m Active' : 'Hidden'}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-600 dark:text-slate-300">
+                  <span>3D Buildings</span>
+                  <span className={`font-semibold ${showBuildings3D ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}>
+                    {showBuildings3D ? 'Extruded' : 'Disabled'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-slate-600 dark:text-slate-300 border-t border-slate-200/60 dark:border-slate-800 pt-1 mt-0.5 text-[11px]">
+                  <span className="text-slate-400">Coordinates</span>
+                  <span className="font-mono text-slate-800 dark:text-slate-200">
+                    {currentCoords[1].toFixed(4)}°N, {currentCoords[0].toFixed(4)}°E
+                  </span>
+                </div>
+              </div>
+
+              {/* Single Clean Attribution Badge */}
+              <div className="absolute bottom-3 right-3 z-10 px-2 py-0.5 rounded-lg bg-white/90 dark:bg-slate-900/90 shadow-xs border border-slate-200/70 dark:border-slate-800 text-[9px] text-slate-500 dark:text-slate-400 font-medium">
+                © OpenStreetMap | Esri World Imagery | MapLibre
+              </div>
             </div>
+
+            {/* Dynamic Right Analytics Panel based on Mode */}
+            {showAnalytics && (
+              mode === 'pollution' ? (
+                <RightPollutionAnalytics
+                  aqi={78}
+                  industryType="Textile"
+                  windSpeed={3.5}
+                  windDirection={270}
+                />
+              ) : (
+                <RightAnalyticsPanel congestionPct={avgCongestion || 68} />
+              )
+            )}
           </div>
 
-          {/* Floating Inspector Panel */}
-          {inspector && (
-            <div className="pointer-events-none absolute right-6 top-5 z-10">
-              <div className="pointer-events-auto">
-                <InspectorPanel {...inspector} onClose={() => setInspector(null)} />
-              </div>
-            </div>
-          )}
+          {/* Dynamic Bottom Telemetry Bar */}
+          {showTelemetry && <BottomTelemetryBar mode={mode} />}
 
-          {/* Real-time Dynamic Active Focus Badge */}
-          <div className="pointer-events-none absolute bottom-6 left-6 z-10">
-            <div className="pointer-events-auto flex flex-col gap-1.5 rounded-xl bg-white/95 px-4 py-3 shadow-xl backdrop-blur-md border border-slate-200/90 text-xs min-w-[220px]">
-              <div className="flex items-center justify-between gap-4">
-                <span className="font-bold tracking-wider text-slate-500 uppercase text-[10px]">Active Focus</span>
-                <span className="flex items-center gap-1.5 font-bold text-blue-600 text-[11px] truncate max-w-[140px]">
-                  <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse flex-shrink-0"></span>
-                  {currentLocationName}
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-slate-600">
-                <span>Mesh Grid</span>
-                <span className="font-semibold text-slate-900">{showGrid ? '250m Active' : 'Hidden'}</span>
-              </div>
-              <div className="flex justify-between items-center text-slate-600">
-                <span>3D Buildings</span>
-                <span className={`font-semibold ${showBuildings3D ? 'text-blue-600' : 'text-slate-400'}`}>
-                  {showBuildings3D ? 'Extruded' : 'Disabled'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-slate-600 border-t border-slate-200/60 pt-1 mt-0.5 text-[11px]">
-                <span className="text-slate-400">Coordinates</span>
-                <span className="font-mono text-slate-800">
-                  {currentCoords[1].toFixed(4)}°N, {currentCoords[0].toFixed(4)}°E
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Error Notification Toast */}
+          {/* Error Toast */}
           {errorMessage && (
-            <div className="absolute top-5 right-6 max-w-sm bg-red-500/95 text-white text-xs font-medium rounded-xl shadow-2xl backdrop-blur-md px-4 py-3 z-50 flex items-start gap-3 border border-red-400">
+            <div className="absolute top-5 right-6 max-w-sm bg-red-500 text-white text-xs font-medium rounded-xl shadow-2xl px-4 py-3 z-50 flex items-start gap-3 border border-red-400">
               <span className="flex-1 leading-relaxed">{errorMessage}</span>
               <button
                 onClick={() => setErrorMessage(null)}

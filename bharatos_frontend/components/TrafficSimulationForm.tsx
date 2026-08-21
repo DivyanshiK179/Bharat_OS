@@ -4,8 +4,6 @@ import { useState } from 'react';
 
 export interface TrafficParams {
   scenario_type: string;
-  center_lat: number;
-  center_lng: number;
   hour_of_day: number;
   day_of_week: number;
   rainfall_mm: number;
@@ -17,62 +15,164 @@ interface TrafficSimulationFormProps {
   loading: boolean;
 }
 
+const SCENARIOS = [
+  { value: 'normal', label: 'Normal day' },
+  { value: 'vip_movement', label: 'VIP movement' },
+  { value: 'heavy_rain', label: 'Heavy rain' },
+  { value: 'bridge_closure', label: 'Bridge maintenance' },
+  { value: 'festival_crowd', label: 'Festival / Mela rush' },
+];
+
+const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
 export default function TrafficSimulationForm({ onRun, loading }: TrafficSimulationFormProps) {
-  const [scenarioType, setScenarioType] = useState('none');
+  const [scenarioType, setScenarioType] = useState('normal');
   const [hourOfDay, setHourOfDay] = useState(9);
   const [dayOfWeek, setDayOfWeek] = useState(1);
-  const [rainfall, setRainfall] = useState(0);
-  const [visibility, setVisibility] = useState(10000);
+  const [rainfallMm, setRainfallMm] = useState(0);
+  const [visibilityM, setVisibilityM] = useState(10000);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    onRun({ scenario_type: scenarioType, center_lat: 25.4012, center_lng: 81.8603, hour_of_day: hourOfDay, day_of_week: dayOfWeek, rainfall_mm: rainfall, visibility_m: visibility });
+    onRun({
+      scenario_type: scenarioType,
+      hour_of_day: hourOfDay,
+      day_of_week: dayOfWeek,
+      rainfall_mm: rainfallMm,
+      visibility_m: visibilityM,
+    });
   }
 
   return (
-    <form onSubmit={handleSubmit} className="absolute top-4 left-4 w-72 bg-white rounded-xl shadow-xl border border-slate-200 p-4 z-[1000] space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-800">Scenario Setup</h3>
-        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-50 text-blue-700">TRAFFIC-SIM</span>
+    <form
+      onSubmit={handleSubmit}
+      className="w-64 rounded-xl bg-white/95 dark:bg-slate-900/95 p-3.5 shadow-xl backdrop-blur-md border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-100 space-y-2.5 select-none transition-colors duration-200"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs">🚦</span>
+          <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+            Scenario Setup
+          </h3>
+        </div>
+        <span className="rounded-md bg-blue-50 dark:bg-blue-950/70 px-1.5 py-0.5 text-[8px] font-mono font-bold text-blue-700 dark:text-blue-400 border border-blue-200/60 dark:border-blue-800">
+          TRAFFIC-SIM
+        </span>
       </div>
 
-      <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-500">
-        Scenario
-        <select value={scenarioType} onChange={(e) => setScenarioType(e.target.value)} className="w-full mt-1 px-2 py-1.5 rounded-md border border-slate-200 text-sm text-slate-800 font-sans normal-case">
-          <option value="none">Normal day</option>
-          <option value="rally">Rally / public event</option>
-          <option value="protest">Protest / dharna</option>
-          <option value="vip_movement">VIP movement</option>
-          <option value="wedding_season">Wedding procession</option>
-          <option value="mela_bathing_day">Kumbh/Magh Mela bathing day</option>
-          <option value="exam_season">Exam / admission season</option>
-          <option value="market_day">Weekly market day</option>
-          <option value="railway_crossing_closure">Railway crossing closure</option>
+      {/* Scenario Profile */}
+      <div>
+        <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400 mb-0.5">
+          Scenario
+        </label>
+        <select
+          value={scenarioType}
+          onChange={(e) => setScenarioType(e.target.value)}
+          className="w-full rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 px-2 py-1 text-[11px] font-semibold text-slate-800 dark:text-slate-200 focus:border-blue-500 focus:outline-none transition-all"
+        >
+          {SCENARIOS.map((s) => (
+            <option key={s.value} value={s.value} className="dark:bg-slate-800 dark:text-slate-200">
+              {s.label}
+            </option>
+          ))}
         </select>
-      </label>
+      </div>
 
-      <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-500">
-        Hour of day
-        <input type="number" value={hourOfDay} min={0} max={23} onChange={(e) => setHourOfDay(Number(e.target.value))} className="w-full mt-1 px-2 py-1.5 rounded-md border border-slate-200 text-sm text-slate-800 font-sans" />
-      </label>
+      {/* Time of Day */}
+      <div className="space-y-0.5">
+        <div className="flex justify-between items-center text-[10px]">
+          <span className="font-semibold text-slate-500 dark:text-slate-400">Hour</span>
+          <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
+            {hourOfDay.toString().padStart(2, '0')}:00 hrs
+          </span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={23}
+          value={hourOfDay}
+          onChange={(e) => setHourOfDay(Number(e.target.value))}
+          className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 dark:bg-slate-700 accent-blue-600"
+        />
+      </div>
 
-      <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-500">
-        Day of week (0=Mon, 6=Sun)
-        <input type="number" value={dayOfWeek} min={0} max={6} onChange={(e) => setDayOfWeek(Number(e.target.value))} className="w-full mt-1 px-2 py-1.5 rounded-md border border-slate-200 text-sm text-slate-800 font-sans" />
-      </label>
+      {/* Day of Week */}
+      <div className="space-y-0.5">
+        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400 block">Day</span>
+        <div className="grid grid-cols-7 gap-0.5">
+          {DAYS.map((day, idx) => (
+            <button
+              type="button"
+              key={idx}
+              onClick={() => setDayOfWeek(idx)}
+              className={`rounded py-0.5 text-[9px] font-bold transition-all ${
+                dayOfWeek === idx
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              {day}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-500">
-        Rainfall (mm)
-        <input type="number" value={rainfall} min={0} max={100} step={0.5} onChange={(e) => setRainfall(Number(e.target.value))} className="w-full mt-1 px-2 py-1.5 rounded-md border border-slate-200 text-sm text-slate-800 font-sans" />
-      </label>
+      {/* Rainfall */}
+      <div className="space-y-0.5">
+        <div className="flex justify-between items-center text-[10px]">
+          <span className="font-semibold text-slate-500 dark:text-slate-400">Rainfall</span>
+          <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{rainfallMm} mm</span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={5}
+          value={rainfallMm}
+          onChange={(e) => setRainfallMm(Number(e.target.value))}
+          className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 dark:bg-slate-700 accent-blue-600"
+        />
+      </div>
 
-      <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-500">
-        Visibility (m)
-        <input type="number" value={visibility} min={100} max={10000} step={100} onChange={(e) => setVisibility(Number(e.target.value))} className="w-full mt-1 px-2 py-1.5 rounded-md border border-slate-200 text-sm text-slate-800 font-sans" />
-      </label>
+      {/* Visibility */}
+      <div className="space-y-0.5">
+        <div className="flex justify-between items-center text-[10px]">
+          <span className="font-semibold text-slate-500 dark:text-slate-400">Visibility</span>
+          <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{visibilityM} m</span>
+        </div>
+        <input
+          type="range"
+          min={200}
+          max={10000}
+          step={200}
+          value={visibilityM}
+          onChange={(e) => setVisibilityM(Number(e.target.value))}
+          className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 dark:bg-slate-700 accent-blue-600"
+        />
+      </div>
 
-      <button type="submit" disabled={loading} className={`w-full py-2 rounded-md text-sm font-medium text-white transition-colors ${loading ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'}`}>
-        {loading ? 'Running…' : 'Run Predictive Simulation'}
+      {/* Run Predictive Simulation Button */}
+      <button
+        type="submit"
+        disabled={loading}
+        className={`flex w-full items-center justify-center gap-1.5 rounded-lg py-2 text-[11px] font-bold text-white shadow-sm transition-all ${
+          loading
+            ? 'bg-blue-400 cursor-not-allowed'
+            : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20 active:scale-[0.98]'
+        }`}
+      >
+        {loading ? (
+          <>
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            <span>Simulating...</span>
+          </>
+        ) : (
+          <>
+            <span>⚡</span>
+            <span>Run Predictive Simulation</span>
+          </>
+        )}
       </button>
     </form>
   );

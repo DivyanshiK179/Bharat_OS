@@ -11,87 +11,115 @@ interface TopStatusBarProps {
   onToggleBuildings?: () => void;
   showGrid?: boolean;
   onToggleGrid?: () => void;
+  showAnalytics?: boolean;
+  onToggleAnalytics?: () => void;
+  showTelemetry?: boolean;
+  onToggleTelemetry?: () => void;
+  isDark?: boolean;
+  onToggleTheme?: () => void;
 }
 
 export default function TopStatusBar({
   mode,
   isRunning = false,
-  avgCongestion = null,
-  recommendation = null,
   showBuildings3D = true,
   onToggleBuildings,
   showGrid = true,
   onToggleGrid,
+  showAnalytics = true,
+  onToggleAnalytics,
+  showTelemetry = true,
+  onToggleTelemetry,
+  isDark = false,
+  onToggleTheme,
 }: TopStatusBarProps) {
   return (
-    <header className="h-14 w-full bg-white border-b border-slate-200 px-6 flex items-center justify-between z-10 select-none shadow-sm">
-      {/* Left: Active Mode & Status Indicator */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <span
-            className={`h-2.5 w-2.5 rounded-full ${
-              isRunning ? 'bg-amber-500 animate-ping' : 'bg-emerald-500'
-            }`}
-          />
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
-            {mode === 'pollution' ? 'Factory Plume & Air Simulation' : 'Traffic Congestion Analytics'}
-          </span>
-        </div>
-
-        {recommendation && (
-          <div className="hidden sm:flex items-center gap-2 border-l border-slate-200 pl-4">
-            <span className="text-[10px] uppercase font-bold text-slate-400">Recommendation</span>
-            <span
-              className={`rounded-md px-2 py-0.5 text-xs font-extrabold uppercase ${
-                recommendation.decision.toLowerCase() === 'approve'
-                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
-                  : 'bg-red-50 text-red-600 border border-red-200'
-              }`}
-            >
-              {recommendation.decision}
-            </span>
-          </div>
-        )}
-
-        {avgCongestion !== null && (
-          <div className="hidden sm:flex items-center gap-2 border-l border-slate-200 pl-4">
-            <span className="text-[10px] uppercase font-bold text-slate-400">Avg Congestion</span>
-            <span className="text-xs font-mono font-bold text-blue-600">
-              {avgCongestion}%
-            </span>
-          </div>
-        )}
+    <header className="h-14 w-full bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 px-6 flex items-center justify-between select-none transition-colors duration-200 shrink-0">
+      {/* Mode Title */}
+      <div className="flex items-center gap-2.5">
+        <span
+          className={`h-2.5 w-2.5 rounded-full ${
+            isRunning ? 'bg-amber-500 animate-ping' : 'bg-emerald-500'
+          }`}
+        />
+        <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 dark:text-slate-200 font-mono">
+          {mode === 'pollution' ? 'Factory Plume & Air Simulation' : 'Traffic Congestion Analytics'}
+        </h2>
       </div>
 
-      {/* Right: Layer Toggles (3D Buildings & Mesh Grid) */}
-      <div className="flex items-center gap-2.5">
+      {/* Action Toggles */}
+      <div className="flex items-center gap-2">
+        {onToggleAnalytics && (
+          <button
+            onClick={onToggleAnalytics}
+            className={`flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-semibold border transition-all ${
+              showAnalytics
+                ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400'
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/60'
+            }`}
+            title="Toggle Right Analytics"
+          >
+            <span>📊</span>
+            <span>Analytics</span>
+          </button>
+        )}
+
+        {onToggleTelemetry && (
+          <button
+            onClick={onToggleTelemetry}
+            className={`flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-semibold border transition-all ${
+              showTelemetry
+                ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400'
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/60'
+            }`}
+            title="Toggle Bottom Ticker"
+          >
+            <span>📡</span>
+            <span>Telemetry</span>
+          </button>
+        )}
+
         {onToggleBuildings && (
           <button
             onClick={onToggleBuildings}
-            className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold border transition-all ${
+            className={`flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-semibold border transition-all ${
               showBuildings3D
-                ? 'bg-blue-50 border-blue-200 text-blue-600'
-                : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'
+                ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400'
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/60'
             }`}
           >
             <span>🏢</span>
-            <span>3D Buildings</span>
+            <span>3D</span>
           </button>
         )}
 
         {onToggleGrid && (
           <button
             onClick={onToggleGrid}
-            className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold border transition-all ${
+            className={`flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-semibold border transition-all ${
               showGrid
-                ? 'bg-blue-50 border-blue-200 text-blue-600'
-                : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'
+                ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400'
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/60'
             }`}
           >
             <span>🌐</span>
-            <span>250m Grid</span>
+            <span>250m</span>
           </button>
         )}
+
+        {onToggleTheme && (
+          <button
+            onClick={onToggleTheme}
+            className="flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-semibold border transition-all bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/60"
+            title="Toggle Theme"
+          >
+            <span>{isDark ? '☀️' : '🌙'}</span>
+          </button>
+        )}
+
+        <div className="h-8 w-8 rounded-full bg-slate-800 dark:bg-slate-700 text-white font-bold text-xs flex items-center justify-center shadow-sm ml-1">
+          N
+        </div>
       </div>
     </header>
   );

@@ -5,11 +5,9 @@ import { useState } from 'react';
 export interface SimulationParams {
   industry_type: string;
   scale: string;
-  latitude: number;
-  longitude: number;
   stack_height_m: number;
   wind_speed: number;
-  wind_direction_deg: number;
+  wind_direction: number;
 }
 
 interface SimulationFormProps {
@@ -29,134 +27,131 @@ export default function SimulationForm({ onRun, loading }: SimulationFormProps) 
     onRun({
       industry_type: industryType,
       scale,
-      latitude: 25.4012,
-      longitude: 81.8603,
       stack_height_m: stackHeight,
       wind_speed: windSpeed,
-      wind_direction_deg: windDirection,
+      wind_direction: windDirection,
     });
   }
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="w-80 rounded-2xl bg-white/95 p-5 shadow-2xl backdrop-blur-xl border border-slate-200/90 text-slate-800 space-y-4 select-none"
+      className="w-64 rounded-xl bg-white/95 dark:bg-slate-900/95 p-3.5 shadow-xl backdrop-blur-md border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-100 space-y-2.5 select-none transition-colors duration-200"
     >
-      {/* Header Bar */}
-      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-        <div className="flex items-center gap-2">
-          <span className="text-blue-600 font-bold text-sm">🎛️</span>
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs">💨</span>
+          <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
             Scenario Setup
           </h3>
         </div>
-        <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-mono font-semibold text-blue-700 border border-blue-200/60">
+        <span className="rounded-md bg-amber-50 dark:bg-amber-950/70 px-1.5 py-0.5 text-[8px] font-mono font-bold text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800">
           SIM-POLLUTION
         </span>
       </div>
 
-      {/* Selects Grid: Industry & Scale */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Industry Type & Scale */}
+      <div className="grid grid-cols-2 gap-1.5">
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400 mb-0.5">
             Industry Type
           </label>
           <select
             value={industryType}
             onChange={(e) => setIndustryType(e.target.value)}
-            className="mt-1 w-full rounded-xl bg-slate-50 border border-slate-200/80 px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none transition-all"
+            className="w-full rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 px-2 py-1 text-[11px] font-semibold text-slate-800 dark:text-slate-200 focus:border-blue-500 focus:outline-none transition-all"
           >
             <option value="textile">Textile</option>
             <option value="chemical">Chemical</option>
-            <option value="cement">Cement</option>
-            <option value="food_processing">Food Processing</option>
+            <option value="brick_kiln">Brick Kiln</option>
+            <option value="tannery">Tannery</option>
           </select>
         </div>
 
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400 mb-0.5">
             Scale
           </label>
           <select
             value={scale}
             onChange={(e) => setScale(e.target.value)}
-            className="mt-1 w-full rounded-xl bg-slate-50 border border-slate-200/80 px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none transition-all"
+            className="w-full rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 px-2 py-1 text-[11px] font-semibold text-slate-800 dark:text-slate-200 focus:border-blue-500 focus:outline-none transition-all"
           >
             <option value="small">Small (0.5x)</option>
             <option value="medium">Medium (1.0x)</option>
-            <option value="large">Large (2.5x)</option>
+            <option value="large">Large (2.0x)</option>
           </select>
         </div>
       </div>
 
-      {/* Stack Height Slider */}
-      <div className="space-y-1.5">
-        <div className="flex justify-between items-center text-xs">
-          <span className="text-[11px] font-semibold text-slate-600">Stack Height</span>
-          <span className="font-mono text-xs font-bold text-blue-600">{stackHeight} m</span>
+      {/* Stack Height */}
+      <div className="space-y-0.5">
+        <div className="flex justify-between items-center text-[10px]">
+          <span className="font-semibold text-slate-500 dark:text-slate-400">Stack Height</span>
+          <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{stackHeight} m</span>
         </div>
         <input
           type="range"
-          min={5}
-          max={150}
+          min={10}
+          max={60}
           value={stackHeight}
           onChange={(e) => setStackHeight(Number(e.target.value))}
-          className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-blue-600"
+          className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 dark:bg-slate-700 accent-blue-600"
         />
       </div>
 
-      {/* Wind Speed Slider */}
-      <div className="space-y-1.5">
-        <div className="flex justify-between items-center text-xs">
-          <span className="text-[11px] font-semibold text-slate-600">Wind Speed</span>
-          <span className="font-mono text-xs font-bold text-blue-600">{windSpeed} m/s</span>
+      {/* Wind Speed */}
+      <div className="space-y-0.5">
+        <div className="flex justify-between items-center text-[10px]">
+          <span className="font-semibold text-slate-500 dark:text-slate-400">Wind Speed</span>
+          <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{windSpeed} m/s</span>
         </div>
         <input
           type="range"
           min={0.5}
-          max={20}
-          step={0.1}
+          max={15}
+          step={0.5}
           value={windSpeed}
           onChange={(e) => setWindSpeed(Number(e.target.value))}
-          className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-blue-600"
+          className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 dark:bg-slate-700 accent-blue-600"
         />
       </div>
 
-      {/* Wind Direction Slider */}
-      <div className="space-y-1.5">
-        <div className="flex justify-between items-center text-xs">
-          <span className="text-[11px] font-semibold text-slate-600">Wind Direction (° From)</span>
-          <span className="font-mono text-xs font-bold text-amber-600">{windDirection}°</span>
+      {/* Wind Direction */}
+      <div className="space-y-0.5">
+        <div className="flex justify-between items-center text-[10px]">
+          <span className="font-semibold text-slate-500 dark:text-slate-400">Wind Direction (° From)</span>
+          <span className="font-mono font-bold text-amber-500">{windDirection}°</span>
         </div>
         <input
           type="range"
           min={0}
-          max={360}
-          step={5}
+          max={359}
           value={windDirection}
           onChange={(e) => setWindDirection(Number(e.target.value))}
-          className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-amber-500"
+          className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 dark:bg-slate-700 accent-amber-500"
         />
       </div>
 
-      {/* Action Button */}
+      {/* Run Simulation Button */}
       <button
         type="submit"
         disabled={loading}
-        className={`flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold text-white shadow-lg transition-all ${
+        className={`flex w-full items-center justify-center gap-1.5 rounded-lg py-2 text-[11px] font-bold text-white shadow-sm transition-all ${
           loading
             ? 'bg-blue-400 cursor-not-allowed'
-            : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/25 active:scale-[0.98]'
+            : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20 active:scale-[0.98]'
         }`}
       >
         {loading ? (
           <>
-            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-            <span>Running Simulation...</span>
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            <span>Simulating...</span>
           </>
         ) : (
           <>
-            <span>✨</span>
+            <span>⚡</span>
             <span>Run Predictive Simulation</span>
           </>
         )}

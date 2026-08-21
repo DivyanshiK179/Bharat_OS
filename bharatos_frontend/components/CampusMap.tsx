@@ -113,7 +113,8 @@ export default function CityMap() {
   const [showBuildings3D, setShowBuildings3D] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
 
-  // Dynamic Panel Visibility
+  // Dynamic Panels Visibility
+  const [showScenarioSetup, setShowScenarioSetup] = useState(true);
   const [showAnalytics, setShowAnalytics] = useState(true);
   const [showTelemetry, setShowTelemetry] = useState(true);
 
@@ -680,13 +681,29 @@ export default function CityMap() {
             <div className="relative flex-1 h-full rounded-2xl overflow-hidden shadow-sm border border-slate-200/80 dark:border-slate-800 bg-slate-900 transition-all duration-300">
               <div ref={mapContainer} className="absolute inset-0 w-full h-full" />
 
-              {/* Floating Scenario Setup Form */}
-              <div className="absolute left-4 top-4 z-20 pointer-events-auto">
-                {mode === 'pollution' ? (
-                  <SimulationForm onRun={runPollutionSimulation} loading={loading} />
-                ) : (
-                  <TrafficSimulationForm onRun={runTrafficSimulation} loading={loading} />
-                )}
+              {/* Smooth Sliding Scenario Setup Container with Toggle Tab */}
+              <div
+                className={`absolute left-4 top-4 z-20 pointer-events-auto transition-transform duration-300 ease-in-out flex items-start ${
+                  showScenarioSetup ? 'translate-x-0' : '-translate-x-[calc(100%-40px)]'
+                }`}
+              >
+                <div className="relative">
+                  {mode === 'pollution' ? (
+                    <SimulationForm onRun={runPollutionSimulation} loading={loading} />
+                  ) : (
+                    <TrafficSimulationForm onRun={runTrafficSimulation} loading={loading} />
+                  )}
+                </div>
+
+                {/* Sliding Toggle Pill Tab */}
+                <button
+                  type="button"
+                  onClick={() => setShowScenarioSetup(!showScenarioSetup)}
+                  className="ml-1.5 mt-2 flex h-8 w-8 items-center justify-center rounded-xl bg-white/95 dark:bg-slate-900/95 shadow-md border border-slate-200/90 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold transition hover:bg-slate-100 dark:hover:bg-slate-800"
+                  title={showScenarioSetup ? 'Collapse Scenario Setup' : 'Expand Scenario Setup'}
+                >
+                  {showScenarioSetup ? '◀' : '⚙️'}
+                </button>
               </div>
 
               {/* Floating Map Controls Dock */}
